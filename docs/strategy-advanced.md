@@ -38,9 +38,9 @@ class AwesomeStrategy(IStrategy):
                 trade.set_custom_data(key='entry_type', value=trade_entry_type)
         return super().bot_loop_start(**kwargs)
 
-    def adjust_entry_price(self, trade: Trade, order: Optional[Order], pair: str,
+    def adjust_entry_price(self, trade: Trade, order: Order | None, pair: str,
                            current_time: datetime, proposed_rate: float, current_order_rate: float,
-                           entry_tag: Optional[str], side: str, **kwargs) -> float:
+                           entry_tag: str | None, side: str, **kwargs) -> float:
         # Limit orders to use and follow SMA200 as price target for the first 10 minutes since entry trigger for BTC/USDT pair.
         if (
             pair == 'BTC/USDT' 
@@ -209,7 +209,7 @@ def custom_exit(self, pair: str, trade: Trade, current_time: datetime, current_r
 
 ## Exit tag
 
-Similar to [Buy Tagging](#buy-tag), you can also specify a sell tag.
+Similar to [Entry Tagging](#enter-tag), you can also specify an exit tag.
 
 ``` python
 def populate_exit_trend(self, dataframe: DataFrame, metadata: dict) -> DataFrame:
@@ -326,4 +326,4 @@ for val in self.buy_ema_short.range:
 dataframe = pd.concat(frames, axis=1)
 ```
 
-Freqtrade does however also counter this by running `dataframe.copy()` on the dataframe right after the `populate_indicators()` method - so performance implications of this should be low to non-existant.
+Freqtrade does however also counter this by running `dataframe.copy()` on the dataframe right after the `populate_indicators()` method - so performance implications of this should be low to non-existent.

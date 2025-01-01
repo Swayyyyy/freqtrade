@@ -11,9 +11,8 @@ Without provided configuration, `--exchange` becomes mandatory.
 You can use a relative timerange (`--days 20`) or an absolute starting point (`--timerange 20200101-`). For incremental downloads, the relative approach should be used.
 
 !!! Tip "Tip: Updating existing data"
-    If you already have backtesting data available in your data-directory and would like to refresh this data up to today, freqtrade will automatically calculate the data missing for the existing pairs and the download will occur from the latest available point until "now", neither --days or --timerange parameters are required. Freqtrade will keep the available data and only download the missing data.
-    If you are updating existing data after inserting new pairs that you have no data for, use `--new-pairs-days xx` parameter. Specified number of days will be downloaded for new pairs while old pairs will be updated with missing data only.
-    If you use `--days xx` parameter alone - data for specified number of days will be downloaded for _all_ pairs. Be careful, if specified number of days is smaller than gap between now and last downloaded candle - freqtrade will delete all existing data to avoid gaps in candle data.
+    If you already have backtesting data available in your data-directory and would like to refresh this data up to today, freqtrade will automatically calculate the missing timerange for the existing pairs and the download will occur from the latest available point until "now", neither `--days` or `--timerange` parameters are required. Freqtrade will keep the available data and only download the missing data.  
+    If you are updating existing data after inserting new pairs that you have no data for, use the `--new-pairs-days xx` parameter. Specified number of days will be downloaded for new pairs while old pairs will be updated with missing data only.  
 
 ### Usage
 
@@ -24,10 +23,10 @@ usage: freqtrade download-data [-h] [-v] [--logfile FILE] [-V] [-c PATH]
                                [--days INT] [--new-pairs-days INT]
                                [--include-inactive-pairs]
                                [--timerange TIMERANGE] [--dl-trades]
-                               [--exchange EXCHANGE]
+                               [--convert] [--exchange EXCHANGE]
                                [-t TIMEFRAMES [TIMEFRAMES ...]] [--erase]
                                [--data-format-ohlcv {json,jsongz,hdf5,feather,parquet}]
-                               [--data-format-trades {json,jsongz,hdf5,feather}]
+                               [--data-format-trades {json,jsongz,hdf5,feather,parquet}]
                                [--trading-mode {spot,margin,futures}]
                                [--prepend]
 
@@ -48,6 +47,11 @@ options:
   --dl-trades           Download trades instead of OHLCV data. The bot will
                         resample trades to the desired timeframe as specified
                         as --timeframes/-t.
+  --convert             Convert downloaded trades to OHLCV data. Only
+                        applicable in combination with `--dl-trades`. Will be
+                        automatic for exchanges which don't have historic
+                        OHLCV (e.g. Kraken). If not provided, use `trades-to-
+                        ohlcv` to convert trades data to OHLCV data.
   --exchange EXCHANGE   Exchange name. Only valid if no config is provided.
   -t TIMEFRAMES [TIMEFRAMES ...], --timeframes TIMEFRAMES [TIMEFRAMES ...]
                         Specify which tickers to download. Space-separated
@@ -57,7 +61,7 @@ options:
   --data-format-ohlcv {json,jsongz,hdf5,feather,parquet}
                         Storage format for downloaded candle (OHLCV) data.
                         (default: `feather`).
-  --data-format-trades {json,jsongz,hdf5,feather}
+  --data-format-trades {json,jsongz,hdf5,feather,parquet}
                         Storage format for downloaded trades data. (default:
                         `feather`).
   --trading-mode {spot,margin,futures}, --tradingmode {spot,margin,futures}
@@ -85,7 +89,7 @@ Common arguments:
 
 !!! Tip "Downloading all data for one quote currency"
     Often, you'll want to download data for all pairs of a specific quote-currency. In such cases, you can use the following shorthand:
-    `freqtrade download-data --exchange binance --pairs .*/USDT <...>`. The provided "pairs" string will be expanded to contain all active pairs on the exchange.
+    `freqtrade download-data --exchange binance --pairs ".*/USDT" <...>`. The provided "pairs" string will be expanded to contain all active pairs on the exchange.
     To also download data for inactive (delisted) pairs, add `--include-inactive-pairs` to the command.
 
 !!! Note "Startup period"
@@ -112,16 +116,17 @@ freqtrade download-data --exchange binance --pairs ETH/USDT XRP/USDT BTC/USDT
 or as regex (in this case, to download all active USDT pairs)
 
 ```bash
-freqtrade download-data --exchange binance --pairs .*/USDT
+freqtrade download-data --exchange binance --pairs ".*/USDT"
 ```
 
 ### Other Notes
 
 * To use a different directory than the exchange specific default, use `--datadir user_data/data/some_directory`.
-* To change the exchange used to download the historical data from, please use a different configuration file (you'll probably need to adjust rate limits etc.)
+* To change the exchange used to download the historical data from, either use `--exchange <exchange>` - or specify a different configuration file.
 * To use `pairs.json` from some other directory, use `--pairs-file some_other_dir/pairs.json`.
 * To download historical candle (OHLCV) data for only 10 days, use `--days 10` (defaults to 30 days).
 * To download historical candle (OHLCV) data from a fixed starting point, use `--timerange 20200101-` - which will download all data from January 1st, 2020.
+* Given starting points are ignored if data is already available, downloading only missing data up to today.
 * Use `--timeframes` to specify what timeframe download the historical candle (OHLCV) data for. Default is `--timeframes 1m 5m` which will download 1-minute and 5-minute data.
 * To use exchange, timeframe and list of pairs as defined in your configuration file, use the `-c/--config` option. With this, the script uses the whitelist defined in the config as the list of currency pairs to download data for and does not require the pairs.json file. You can combine `-c/--config` with most other options.
 
@@ -157,7 +162,7 @@ Freqtrade currently supports the following data-formats:
 * `feather` - a dataformat based on Apache Arrow
 * `json` -  plain "text" json files
 * `jsongz` - a gzip-zipped version of json files
-* `hdf5` - a high performance datastore
+* `hdf5` - a high performance datastore (deprecated)
 * `parquet` - columnar datastore (OHLCV only)
 
 By default, both OHLCV data and trades data are stored in the `feather` format.
@@ -418,7 +423,8 @@ You can get a list of downloaded data using the `list-data` sub-command.
 usage: freqtrade list-data [-h] [-v] [--logfile FILE] [-V] [-c PATH] [-d PATH]
                            [--userdir PATH] [--exchange EXCHANGE]
                            [--data-format-ohlcv {json,jsongz,hdf5,feather,parquet}]
-                           [-p PAIRS [PAIRS ...]]
+                           [--data-format-trades {json,jsongz,hdf5,feather,parquet}]
+                           [--trades] [-p PAIRS [PAIRS ...]]
                            [--trading-mode {spot,margin,futures}]
                            [--show-timerange]
 
@@ -428,6 +434,10 @@ options:
   --data-format-ohlcv {json,jsongz,hdf5,feather,parquet}
                         Storage format for downloaded candle (OHLCV) data.
                         (default: `feather`).
+  --data-format-trades {json,jsongz,hdf5,feather,parquet}
+                        Storage format for downloaded trades data. (default:
+                        `feather`).
+  --trades              Work on trades data instead of OHLCV data.
   -p PAIRS [PAIRS ...], --pairs PAIRS [PAIRS ...]
                         Limit command to these pairs. Pairs are space-
                         separated.
@@ -460,26 +470,47 @@ Common arguments:
 ```bash
 > freqtrade list-data --userdir ~/.freqtrade/user_data/
 
-Found 33 pair / timeframe combinations.
-pairs       timeframe
-----------  -----------------------------------------
-ADA/BTC     5m, 15m, 30m, 1h, 2h, 4h, 6h, 12h, 1d
-ADA/ETH     5m, 15m, 30m, 1h, 2h, 4h, 6h, 12h, 1d
-ETH/BTC     5m, 15m, 30m, 1h, 2h, 4h, 6h, 12h, 1d
-ETH/USDT    5m, 15m, 30m, 1h, 2h, 4h
+              Found 33 pair / timeframe combinations.
+┏━━━━━━━━━━━━━━━┳━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┳━━━━━━┓
+┃          Pair ┃                                 Timeframe ┃ Type ┃
+┡━━━━━━━━━━━━━━━╇━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━╇━━━━━━┩
+│       ADA/BTC │     5m, 15m, 30m, 1h, 2h, 4h, 6h, 12h, 1d │ spot │
+│       ADA/ETH │     5m, 15m, 30m, 1h, 2h, 4h, 6h, 12h, 1d │ spot │
+│       ETH/BTC │     5m, 15m, 30m, 1h, 2h, 4h, 6h, 12h, 1d │ spot │
+│      ETH/USDT │                  5m, 15m, 30m, 1h, 2h, 4h │ spot │
+└───────────────┴───────────────────────────────────────────┴──────┘
+
+```
+
+Show all trades data including from/to timerange
+
+``` bash
+> freqtrade list-data --show --trades
+                     Found trades data for 1 pair.                     
+┏━━━━━━━━━┳━━━━━━┳━━━━━━━━━━━━━━━━━━━━━┳━━━━━━━━━━━━━━━━━━━━━┳━━━━━━━━┓
+┃    Pair ┃ Type ┃                From ┃                  To ┃ Trades ┃
+┡━━━━━━━━━╇━━━━━━╇━━━━━━━━━━━━━━━━━━━━━╇━━━━━━━━━━━━━━━━━━━━━╇━━━━━━━━┩
+│ XRP/ETH │ spot │ 2019-10-11 00:00:11 │ 2019-10-13 11:19:28 │  12477 │
+└─────────┴──────┴─────────────────────┴─────────────────────┴────────┘
+
 ```
 
 ## Trades (tick) data
 
-By default, `download-data` sub-command downloads Candles (OHLCV) data. Some exchanges also provide historic trade-data via their API.
+By default, `download-data` sub-command downloads Candles (OHLCV) data. Most exchanges also provide historic trade-data via their API.
 This data can be useful if you need many different timeframes, since it is only downloaded once, and then resampled locally to the desired timeframes.
 
-Since this data is large by default, the files use the feather fileformat by default. They are stored in your data-directory with the naming convention of `<pair>-trades.feather` (`ETH_BTC-trades.feather`). Incremental mode is also supported, as for historic OHLCV data, so downloading the data once per week with `--days 8` will create an incremental data-repository.
+Since this data is large by default, the files use the feather file format by default. They are stored in your data-directory with the naming convention of `<pair>-trades.feather` (`ETH_BTC-trades.feather`). Incremental mode is also supported, as for historic OHLCV data, so downloading the data once per week with `--days 8` will create an incremental data-repository.
 
-To use this mode, simply add `--dl-trades` to your call. This will swap the download method to download trades, and resamples the data locally.
+To use this mode, simply add `--dl-trades` to your call. This will swap the download method to download trades.
+If `--convert` is also provided, the resample step will happen automatically and overwrite eventually existing OHLCV data for the given pair/timeframe combinations.
 
-!!! Warning "do not use"
-    You should not use this unless you're a kraken user. Most other exchanges provide OHLCV data with sufficient history.
+!!! Warning "Do not use"
+    You should not use this unless you're a kraken user (Kraken does not provide historic OHLCV data).  
+    Most other exchanges provide OHLCV data with sufficient history, so downloading multiple timeframes through that method will still proof to be a lot faster than downloading trades data.
+
+!!! Note "Kraken user"
+    Kraken users should read [this](exchanges.md#historic-kraken-data) before starting to download data.
 
 Example call:
 
@@ -490,12 +521,6 @@ freqtrade download-data --exchange kraken --pairs XRP/EUR ETH/EUR --days 20 --dl
 !!! Note
     While this method uses async calls, it will be slow, since it requires the result of the previous call to generate the next request to the exchange.
 
-!!! Warning
-    The historic trades are not available during Freqtrade dry-run and live trade modes because all exchanges tested provide this data with a delay of few 100 candles, so it's not suitable for real-time trading.
-
-!!! Note "Kraken user"
-    Kraken users should read [this](exchanges.md#historic-kraken-data) before starting to download data.
-
 ## Next step
 
-Great, you now have backtest data downloaded, so you can now start [backtesting](backtesting.md) your strategy.
+Great, you now have some data downloaded, so you can now start [backtesting](backtesting.md) your strategy.
