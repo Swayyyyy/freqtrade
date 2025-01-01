@@ -713,25 +713,39 @@ class FreqaiDataDrawer:
         :param metadata: dict = strategy furnished pair metadata
         """
         with self.history_lock:
-            corr_dataframes: Dict[Any, Any] = {}
-            base_dataframes: Dict[Any, Any] = {}
-            historic_data = self.historic_data
-            pairs = self.freqai_info["feature_parameters"].get(
-                "include_corr_pairlist", []
-            )
+            if self.freqai_info.get("mergehistory", False):
+                corr_dataframes: Dict[Any, Any] = {}
+                base_dataframes: Dict[Any, Any] = {}
+                historic_data = self.historic_data
+                pairs = dk.all_pairs
+                for tf in self.freqai_info["feature_parameters"].get("include_timeframes"):
+                    pair = pairs.pop()
+                    data = dk.slice_dataframe(timerange, historic_data[pair][tf])
+                    print(data.head(5))
+                    for pair in pairs:
+                        data = pd.merge([data, dk.slice_dataframe(timerange, historic_data[pair][tf], on='date')])
 
-            for tf in self.freqai_info["feature_parameters"].get("include_timeframes"):
-                base_dataframes[tf] = dk.slice_dataframe(
-                    timerange, historic_data[pair][tf]).reset_index(drop=True)
-                if pairs:
-                    for p in pairs:
-                        if pair in p:
-                            continue  # dont repeat anything from whitelist
-                        if p not in corr_dataframes:
-                            corr_dataframes[p] = {}
-                        corr_dataframes[p][tf] = dk.slice_dataframe(
-                            timerange, historic_data[p][tf]
-                        ).reset_index(drop=True)
+                    base_dataframes[tf] = data.reset_index(drop=True)
+            else:
+                corr_dataframes: Dict[Any, Any] = {}
+                base_dataframes: Dict[Any, Any] = {}
+                historic_data = self.historic_data
+                pairs = self.freqai_info["feature_parameters"].get(
+                    "include_corr_pairlist", []
+                )
+
+                for tf in self.freqai_info["feature_parameters"].get("include_timeframes"):
+                    base_dataframes[tf] = dk.slice_dataframe(
+                        timerange, historic_data[pair][tf]).reset_index(drop=True)
+                    if pairs:
+                        for p in pairs:
+                            if pair in p:
+                                continue  # dont repeat anything from whitelist
+                            if p not in corr_dataframes:
+                                corr_dataframes[p] = {}
+                            corr_dataframes[p][tf] = dk.slice_dataframe(
+                                timerange, historic_data[p][tf]
+                            ).reset_index(drop=True)
 
         return corr_dataframes, base_dataframes
 
