@@ -66,6 +66,9 @@ class IFreqaiModel(ABC):
         self.model_training_parameters: dict[str, Any] = config.get("freqai", {}).get(
             "model_training_parameters", {}
         )
+        self.model_parameters: dict[str, Any] = config.get("freqai", {}).get(
+            "model_parameters", {}
+        )
         self.identifier: str = self.freqai_info.get("identifier", "no_id_provided")
         self.retrain = False
         self.first = True

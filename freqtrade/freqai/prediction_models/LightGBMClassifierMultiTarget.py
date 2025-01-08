@@ -59,7 +59,7 @@ class LightGBMClassifierMultiTarget(BaseClassifierModel):
                 {
                     "eval_set": eval_sets[i],
                     "eval_sample_weight": eval_weights,
-                    "init_model": init_models[i],
+                    "init_model": init_models[i]
                 }
             )
 
