@@ -36,11 +36,13 @@ class XGBoostClassifier(BaseClassifierModel):
 
         X = data_dictionary["train_features"].to_numpy()
         y = data_dictionary["train_labels"].to_numpy()[:, 0]
-
+        # print(data_dictionary["train_features"].columns)
         le = LabelEncoder()
+        # print(f"Class names: {self.class_names}")
+        le.fit_transform(self.class_names)
         if not is_integer_dtype(y):
-            y = pd.Series(le.fit_transform(y), dtype="int64")
-
+            y = pd.Series(le.transform(y), dtype="int64")
+        # print(f"y value_counts: {y.value_counts()}")
         if self.freqai_info.get("data_split_parameters", {}).get("test_size", 0.1) == 0:
             eval_set = None
         else:
@@ -59,7 +61,6 @@ class XGBoostClassifier(BaseClassifierModel):
         model = XGBClassifier(**self.model_parameters)
 
         model.fit(X=X, y=y, eval_set=eval_set, sample_weight=train_weights, xgb_model=init_model, **self.model_training_parameters)
-
         return model
 
     def predict(

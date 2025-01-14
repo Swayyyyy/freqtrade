@@ -20,7 +20,8 @@ from freqtrade.constants import (
     WEBHOOK_FORMAT_OPTIONS,
 )
 from freqtrade.enums import RPCMessageType
-
+import datetime
+import random
 
 __MESSAGE_TYPE_DICT: dict[str, dict[str, str]] = {x: {"type": "object"} for x in RPCMessageType}
 
@@ -1006,7 +1007,7 @@ CONF_SCHEMA = {
                         "Must be changed when modifying features."
                     ),
                     "type": "string",
-                    "default": "example",
+                    "default": f"{datetime.datetime.now().strftime('%Y%m%d%H%M%S')}",
                 },
                 "wait_for_training_iteration_on_reload": {
                     "description": (

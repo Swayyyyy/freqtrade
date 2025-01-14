@@ -274,6 +274,11 @@ class FreqtradeBot(LoggingMixin):
             current_time=datetime.now(timezone.utc)
         )
 
+        # build features 
+        # Analyze strategy per pair.
+        # Call populate_indicators()
+        # Call populate_entry_trend()
+        # Call populate_exit_trend()
         with self._measure_execution:
             self.strategy.analyze(self.active_pair_whitelist)
 

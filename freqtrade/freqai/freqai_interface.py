@@ -27,7 +27,7 @@ from freqtrade.freqai.data_drawer import FreqaiDataDrawer
 from freqtrade.freqai.data_kitchen import FreqaiDataKitchen
 from freqtrade.freqai.utils import get_tb_logger, plot_feature_importance, record_params
 from freqtrade.strategy.interface import IStrategy
-
+from freqtrade.plugins.pairlistmanager import PairListManager
 
 pd.options.mode.chained_assignment = None
 logger = logging.getLogger(__name__)
@@ -95,6 +95,7 @@ class IFreqaiModel(ABC):
         self.pair_it_train = 0
         self.total_pairs = len(self.config.get("exchange", {}).get("pair_whitelist"))
         self.train_queue = self._set_train_queue()
+        print(f"training queue are {self.train_queue}")
         self.inference_time: float = 0
         self.train_time: float = 0
         self.begin_time: float = 0
@@ -775,8 +776,13 @@ class IFreqaiModel(ABC):
         otherwise it sets the train queue based on the provided whitelist.
         """
         current_pairlist = self.config.get("exchange", {}).get("pair_whitelist")
+        
         if not self.dd.pair_dict:
-            logger.info("Set fresh train queue from whitelist. Queue: {current_pairlist}")
+            if len(current_pairlist)==0:
+                self.pairlists = PairListManager(self.exchange, self.config, self.dataprovider)
+                self.pairlists.refresh_pairlist()
+                current_pairlist = self.pairlists.whitelist
+            logger.info(f"Set fresh train queue from whitelist. Queue: {current_pairlist}")
             return deque(current_pairlist)
 
         best_queue = deque()
