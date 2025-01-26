@@ -13,7 +13,7 @@ import pandas as pd
 import psutil
 from datasieve.pipeline import Pipeline
 from pandas import DataFrame
-from sklearn.model_selection import train_test_split
+
 
 from freqtrade.configuration import TimeRange
 from freqtrade.constants import DOCS_LINK, Config
@@ -136,7 +136,8 @@ class FreqaiDataKitchen:
         :param labels: cleaned labels ready to be split.
         """
         feat_dict = self.freqai_config["feature_parameters"]
-
+        ## TODO
+        ## 改为按时间切分训练测试，留个开关
         if "shuffle" not in self.freqai_config["data_split_parameters"]:
             self.freqai_config["data_split_parameters"].update({"shuffle": False})
 
@@ -147,19 +148,44 @@ class FreqaiDataKitchen:
             weights = np.ones(len(filtered_dataframe))
 
         if self.freqai_config.get("data_split_parameters", {}).get("test_size", 0.1) != 0:
-            (
-                train_features,
-                test_features,
-                train_labels,
-                test_labels,
-                train_weights,
-                test_weights,
-            ) = train_test_split(
-                filtered_dataframe[: filtered_dataframe.shape[0]],
-                labels,
-                weights,
-                **self.config["freqai"]["data_split_parameters"],
-            )
+            if self.freqai_config.get("data_split_parameters", {}).get("shuffle", False):
+                from sklearn.model_selection import train_test_split
+                (
+                    train_features,
+                    test_features,
+                    train_labels,
+                    test_labels,
+                    train_weights,
+                    test_weights,
+                ) = train_test_split(
+                    filtered_dataframe[: filtered_dataframe.shape[0]],
+                    labels,
+                    weights,
+                    **self.config["freqai"]["data_split_parameters"],
+                )
+            else:
+                def train_test_split(data, labels, weights, test_size, **kwargs):
+                    split_index = int(len(data) * (1 - test_size))
+                    train_features = data[:split_index]
+                    test_features = data[split_index:]
+                    train_labels = labels[:split_index]
+                    test_labels = labels[split_index:]
+                    train_weights = weights[:split_index]
+                    test_weights = weights[split_index:]
+                    return train_features, test_features, train_labels, test_labels, train_weights, test_weights
+                (
+                    train_features,
+                    test_features,
+                    train_labels,
+                    test_labels,
+                    train_weights,
+                    test_weights,
+                ) = train_test_split(
+                    filtered_dataframe[: filtered_dataframe.shape[0]],
+                    labels,
+                    weights,
+                    **self.config["freqai"]["data_split_parameters"],
+                ) 
         else:
             test_labels = np.zeros(2)
             test_features = pd.DataFrame()

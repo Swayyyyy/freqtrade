@@ -36,13 +36,13 @@ class XGBoostClassifier(BaseClassifierModel):
 
         X = data_dictionary["train_features"].to_numpy()
         y = data_dictionary["train_labels"].to_numpy()[:, 0]
-        # print(data_dictionary["train_features"].columns)
+        
         le = LabelEncoder()
-        # print(f"Class names: {self.class_names}")
+        
         le.fit_transform(self.class_names)
         if not is_integer_dtype(y):
             y = pd.Series(le.transform(y), dtype="int64")
-        # print(f"y value_counts: {y.value_counts()}")
+        
         if self.freqai_info.get("data_split_parameters", {}).get("test_size", 0.1) == 0:
             eval_set = None
         else:
@@ -57,10 +57,10 @@ class XGBoostClassifier(BaseClassifierModel):
         train_weights = data_dictionary["train_weights"]
 
         init_model = self.get_init_model(dk.pair)
-
+        
         model = XGBClassifier(**self.model_parameters)
 
-        model.fit(X=X, y=y, eval_set=eval_set, sample_weight=train_weights, xgb_model=init_model, **self.model_training_parameters)
+        model.fit(X=X, y=y, eval_set=eval_set, sample_weight=train_weights, xgb_model=init_model, verbose=False, **self.model_training_parameters)
         return model
 
     def predict(
@@ -70,13 +70,14 @@ class XGBoostClassifier(BaseClassifierModel):
         Filter the prediction features data and predict with it.
         :param unfiltered_df: Full dataframe for the current backtest period.
         :return:
-        :pred_df: dataframe containing the predictions
+        :pred_df: dataframe containing the predictionss
         :do_predict: np.array of 1s and 0s to indicate places where freqai needed to remove
         data (NaNs) or felt uncertain about data (PCA and DI index)
         """
 
         (pred_df, dk.do_predict) = super().predict(unfiltered_df, dk, **kwargs)
-
+        
+            
         le = LabelEncoder()
         label = dk.label_list[0]
         labels_before = list(dk.data["labels_std"].keys())

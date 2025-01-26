@@ -9,9 +9,18 @@ from pandas import DataFrame
 
 from freqtrade.freqai.data_kitchen import FreqaiDataKitchen
 from freqtrade.freqai.freqai_interface import IFreqaiModel
-
+#导入准确率，AUC指标
+from sklearn.preprocessing import label_binarize
+from freqtrade.freqai.metrics import auc_score, accuracy_score_for_labels, accuracy_score_for_labels_with_weight, auc_score_for_multiclass
 
 logger = logging.getLogger(__name__)
+
+METRIC_MAP={
+    "auc": auc_score,
+    'auc_score_for_multiclass': auc_score_for_multiclass,
+    'accuracy_for_labels': accuracy_score_for_labels,
+    'accuracy_for_labels_with_weight': accuracy_score_for_labels_with_weight
+}
 
 
 class BaseClassifierModel(IFreqaiModel):
@@ -76,7 +85,22 @@ class BaseClassifierModel(IFreqaiModel):
         model = self.fit(dd, dk)
 
         end_time = time()
-
+        if self.freqai_info.get("filter_model", {}) and self.freqai_info["filter_model"].get("enabled", False):
+            metric = self.freqai_info["filter_model"].get("metric", "accuracy")
+            metric_func = METRIC_MAP[metric]
+            if self.freqai_info["filter_model"].get("input_type") == 'prob':
+                metric_value = metric_func(label_binarize(dd["test_labels"], classes=self.class_names), model.predict_proba(dd["test_features"]), **self.freqai_info["filter_model"].get("metric_kwargs", {}))
+            else:
+                from sklearn.preprocessing import LabelEncoder
+                le = LabelEncoder()
+                le.fit_transform(self.class_names)
+                metric_value = metric_func(dd["test_labels"].values.reshape(-1), model.predict(dd["test_features"]), le = le, **self.freqai_info["filter_model"].get("metric_kwargs", {}))
+            metric_threshold = self.freqai_info["filter_model"].get("threshold", 0)
+            if metric_value < metric_threshold:
+                self.model = None
+                logger.info(f'Model for pair {pair}, {metric} value is {metric_value}, below threshold {metric_threshold}, remove model')
+            else:
+                logger.info(f'Model for pair {pair}, {metric} value is {metric_value}, above threshold {metric_threshold}, keeping model')
         logger.info(
             f"-------------------- Done training {pair} "
             f"({end_time - start_time:.2f} secs) --------------------"
@@ -95,7 +119,6 @@ class BaseClassifierModel(IFreqaiModel):
         :do_predict: np.array of 1s and 0s to indicate places where freqai needed to remove
         data (NaNs) or felt uncertain about data (PCA and DI index)
         """
-
         dk.find_features(unfiltered_df)
         filtered_df, _ = dk.filter_features(
             unfiltered_df, dk.training_features_list, training_filter=False
